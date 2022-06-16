@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="714d4ae5-9192-4127-9fb8-1430465acb09" name="telebot">
+        <fileTransfer rootFolder="/home/crazycoco/ID_bots/BMKJ" accessType="SFTP" host="35.198.162.87" port="22" sshConfigId="b91c835b-2b1d-4eb9-a77d-454f85753922" sshConfig="crazycoco@35.198.162.87:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
