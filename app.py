@@ -189,7 +189,11 @@ def EOD_logic_check(message):
 
         dispatch_list = message.split('\n')
         for i in range(len(dispatch_list)):
-            dispatch_list[i-1] = dispatch_list[i-1].split(' ')
+            current_row = dispatch_list[i-1].split(' ')
+            dispatch_list[i-1] = []
+            for j in current_row:
+                if j:
+                    dispatch_list[i-1].append(j)
 
         duplicate_list = {}
 
@@ -268,6 +272,9 @@ def EOD_logic_check(message):
                 issued_moves.append(reply)
 
         # Build reply:
+        if not(broken_rows or issued_moves):
+            return ['Everything is correct!!!']
+
         return_messages = []
         return_message = 'Broken rows:'
         if broken_rows:
@@ -294,11 +301,14 @@ def EOD_logic_check(message):
                     return_message = ''
                 return_message += reply
             return_messages.append(return_message)
+        else:
+            return_messages.append('Everything else is correct!!!')
 
         if return_messages:
             return return_messages
 
-        return ['Everything is correct!!!']
+
+
     except Exception as e:
         print('An error has occurred: ' + str(e))
         return ['An error occurred, please report this to the manager with the message you sent to the bot']
