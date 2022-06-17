@@ -46,7 +46,6 @@ db = SQLAlchemy(app)
 
 # database model to authenticate users
 class Users(db.Model):
-
     __tablename__ = 'bmkj'
 
     # Telegram ID as a primary key since it's unique to each user
@@ -88,7 +87,6 @@ def telegram_webhook():
 
 # Build the menu button
 def build_menu(position_in_menu, is_admin=False):
-
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     message = None
 
@@ -176,7 +174,6 @@ def search_for_an_ID_or_row(text, return_dictionary=False, search_limitations=No
 # EOD logic check function
 # gets a message from a user and returns a reply based on input
 def EOD_logic_check(message):
-
     try:
         eod_log = {}
         file_path = 'temp/completed_moves_verified.csv'
@@ -189,11 +186,11 @@ def EOD_logic_check(message):
 
         dispatch_list = message.split('\n')
         for i in range(len(dispatch_list)):
-            current_row = dispatch_list[i-1].split(' ')
-            dispatch_list[i-1] = []
+            current_row = dispatch_list[i - 1].split(' ')
+            dispatch_list[i - 1] = []
             for j in current_row:
                 if j:
-                    dispatch_list[i-1].append(j)
+                    dispatch_list[i - 1].append(j)
 
         duplicate_list = {}
 
@@ -272,7 +269,7 @@ def EOD_logic_check(message):
                 issued_moves.append(reply)
 
         # Build reply:
-        if not(broken_rows or issued_moves):
+        if not (broken_rows or issued_moves):
             return ['Everything is correct!!!']
 
         return_messages = []
@@ -316,7 +313,6 @@ def EOD_logic_check(message):
 
 # Sort logic in 1 spot
 def split_sort_current_work(message):
-
     try:
         text = message.split('\n')
         locations = {'Taylor Way', 'Sumner 1', 'Sumner 2'}
@@ -460,6 +456,8 @@ def submit_bobtail(carrier_scac, customer, shift, origin, destination, driver_na
 
 
 # ======================================================================================================================
+
+
 # Bot listener
 
 # /start command
@@ -472,7 +470,7 @@ def start_command(m):
         db.session.add(user)
         db.session.commit()
         bot.send_message(m.from_user.id, 'You are not registered, please request access from your manager.\n\n'
-                                         'Your id: ' + str(m.from_user.id))
+                                         'Your id: ' + str(m.from_user.id) + ', Give it to your manager')
         return
 
     if user.position_in_menu == -1:
@@ -480,11 +478,20 @@ def start_command(m):
 
     if user.position_in_menu == -2:
         user.position_in_menu = -1
+
+        reply = 'You are not registered, please request access from your manager\n\n' \
+                'Your id: ' + str(m.from_user.id) + ', Give it to your manager\n\n' \
+                'This is the last time you get this message. The bot is for private ' \
+                'use only, so until you are granted access you will be ignored. Thank you.'
+        reply_markup = None
+
+        if is_bot_admin(m.from_user.id):
+            user.position_in_menu = 0
+            reply, reply_markup = build_menu(0)
+            reply = 'You have been registered, Master'
+
         db.session.commit()
-        bot.send_message(m.from_user.id, 'You are not registered, please request access from your manager\n\n'
-                                         'Your id: ' + str(m.from_user.id) + '\n\n' 
-                                         'This is the last time you get this message. The bot is for private '
-                                         'use only, so until you are granted access you will be ignored. Thank you.')
+        bot.send_message(m.from_user.id, reply, reply_markup=reply_markup)
         return
 
     message, reply_markup = build_menu(0)
@@ -497,7 +504,6 @@ def start_command(m):
 # /test command
 @bot.message_handler(commands=['test'])
 def test_command(m):
-
     if not is_bot_admin(m.from_user.id):
         return
 
@@ -532,7 +538,6 @@ def help_command(m):
 # All other messages handler
 @bot.message_handler(content_types=['text'])
 def messages(m):
-
     user = Users.query.filter_by(id=m.from_user.id).first()
 
     if not user:
@@ -673,7 +678,6 @@ def messages(m):
 
 @bot.message_handler(content_types=['document'])
 def message_document(m):
-
     user = Users.query.filter_by(id=m.from_user.id).first()
 
     if not (user.position_in_menu == 1 or user.position_in_menu == 2):
