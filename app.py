@@ -93,6 +93,8 @@ def build_menu(position_in_menu, is_admin=False):
     message = None
 
     if position_in_menu == 0:
+        button = types.KeyboardButton('SORT')
+        markup.row(button)
         button = types.KeyboardButton('EOD')
         markup.row(button)
         message = 'Main menu'
@@ -112,6 +114,11 @@ def build_menu(position_in_menu, is_admin=False):
         button = types.KeyboardButton('Back to main menu')
         markup.row(button)
         message = 'Click the "Mode" button for more info'
+
+    elif position_in_menu == 5:
+        button = types.KeyboardButton('Back to main menu')
+        markup.row(button)
+        message = 'Welcome to the sort menu, paste current work to sort'
 
     return message, markup
 
@@ -182,7 +189,11 @@ def EOD_logic_check(message):
 
         dispatch_list = message.split('\n')
         for i in range(len(dispatch_list)):
-            dispatch_list[i-1] = dispatch_list[i-1].split(' ')
+            current_row = dispatch_list[i-1].split(' ')
+            dispatch_list[i-1] = []
+            for j in current_row:
+                if j:
+                    dispatch_list[i-1].append(j)
 
         duplicate_list = {}
 
@@ -261,6 +272,9 @@ def EOD_logic_check(message):
                 issued_moves.append(reply)
 
         # Build reply:
+        if not(broken_rows or issued_moves):
+            return ['Everything is correct!!!']
+
         return_messages = []
         return_message = 'Broken rows:'
         if broken_rows:
@@ -268,7 +282,7 @@ def EOD_logic_check(message):
                 reply = '\n' + i
                 if len(reply) > 4096:
                     print('Error: ' + reply)
-                    reply = "\ndon't mess with me"
+                    reply = '\nrow to long? report this to admin'
                 if len(return_message) + len(reply) > 4096:
                     return_messages.append(return_message)
                     return_message = ''
@@ -281,20 +295,121 @@ def EOD_logic_check(message):
                 reply = '\n' + i
                 if len(reply) > 4096:
                     print('Error: ' + reply)
-                    reply = "\ndon't mess with me"
+                    reply = '\nrow to long? report this to admin'
+                if len(return_message) + len(reply) > 4096:
+                    return_messages.append(return_message)
+                    return_message = ''
+                return_message += reply
+            return_messages.append(return_message)
+        else:
+            return_messages.append('Everything else is correct!!!')
+
+        if return_messages:
+            return return_messages
+
+
+
+    except Exception as e:
+        print('An error has occurred: ' + str(e))
+        return ['An error occurred, please report this to the manager with the message you sent to the bot']
+
+
+# Sort logic in 1 spot
+def split_sort_current_work(message):
+
+    try:
+        text = message.split('\n')
+        locations = {'Taylor Way', 'Sumner 1', 'Sumner 2'}
+        LOADED_TO_S1_S2 = []
+        EMPTY_TO_TW = []
+        UNDEFINED = []
+        origin = ''
+        destination = ''
+        current_move_id = ''
+
+        while text:
+            i = text[0]
+
+            if not i:
+                pass
+
+            elif (len(i) > 4 and re.search(rf'[0-9]{scac}', i)) or len(text) == 1:
+
+                if not current_move_id:
+                    current_move_id = i
+
+                else:
+
+                    # remove undefined
+                    if not (origin and destination):
+                        UNDEFINED.append(current_move_id)
+
+                    # TW to S1/S2
+                    elif origin == 'Taylor Way' and (destination == 'Sumner 1' or destination == 'Sumner 2'):
+                        row = 'L ' + current_move_id + (' S2' if destination == 'Sumner 2' else ' S1')
+                        LOADED_TO_S1_S2.append(row)
+
+                    # S1/S2 to TW
+                    elif destination == 'Taylor Way' and (origin == 'Sumner 1' or origin == 'Sumner 2'):
+                        row = 'E ' + current_move_id + (' S2' if origin == 'Sumner 2' else '')
+                        EMPTY_TO_TW.append(row)
+
+                    current_move_id = i
+                    origin = ''
+                    destination = ''
+
+            elif i in locations:
+                if not origin:
+                    origin = i
+
+                else:
+                    destination = i
+
+            text.pop(0)
+
+        return_messages = []
+        if LOADED_TO_S1_S2:
+            return_message = 'Loaded: '
+            for i in LOADED_TO_S1_S2:
+                reply = '\n`' + i + '`'
+                if len(reply) > 4096:
+                    reply = 'row to long? report this to admin'
                 if len(return_message) + len(reply) > 4096:
                     return_messages.append(return_message)
                     return_message = ''
                 return_message += reply
             return_messages.append(return_message)
 
-        if return_messages:
-            return return_messages
+        if EMPTY_TO_TW:
+            return_message = 'Empty: '
+            for i in EMPTY_TO_TW:
+                reply = '\n`' + i + '`'
+                if len(reply) > 4096:
+                    reply = 'row to long? report this to admin'
+                if len(return_message) + len(reply) > 4096:
+                    return_messages.append(return_message)
+                    return_message = ''
+                return_message += reply
+            return_messages.append(return_message)
 
-        return ['Everything is correct!!!']
+        if UNDEFINED:
+            return_message = 'Undefined: '
+            for i in UNDEFINED:
+                reply = '\n`' + i + '`'
+                if len(reply) > 4096:
+                    reply = 'row to long? report this to admin'
+                if len(return_message) + len(reply) > 4096:
+                    return_messages.append(return_message)
+                    return_message = ''
+                return_message += reply
+            return_messages.append(return_message)
+
+        return return_messages
+
     except Exception as e:
-        print('An error has occurred: ' + str(e))
-        return ['An error occurred, please report this to the manager with the message you sent to the bot']
+        print('Message giving the error below: ' + message)
+        print('Error while sorting: ' + e)
+        return ['Error while sorting, contact support for help']
 
 
 # Request to SmartSheets to obtain FormToken
@@ -429,6 +544,56 @@ def messages(m):
     if user.position_in_menu < 0:
         return
 
+    if user.position_in_menu == 0:
+        if m.text == 'EOD':
+            message, reply_markup = build_menu(1)
+            user.position_in_menu = 1
+            db.session.commit()
+            bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+            return
+
+        if m.text == 'SORT':
+            message, reply_markup = build_menu(5)
+            user.position_in_menu = 5
+            db.session.commit()
+            bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+            return
+
+        if not is_bot_admin(m.from_user.id):
+            return
+
+        # row 1 - admin instruction
+        # row 2 - user instruction is applied to
+        # row 3 - additional details if required
+        text = m.text.split('\n')
+
+        if text[0] == 'list':
+            user_list = Users.query.order_by(Users.position_in_menu).all()
+
+            if len(user_list) == 0:
+                bot.send_message(m.from_user.id, 'No users in the database(something has gone wrong)')
+                return
+
+            r = 'list of users:'
+            for i in user_list:
+                r += '\n' + str(i.id)
+
+            bot.send_message(m.from_user.id, r)
+            return
+
+        if text[0] == 'add':
+            todo_user = Users.query.filter_by(id=int(text[1])).first()
+
+            if todo_user:
+                todo_user.position_in_menu = 0
+                db.session.commit()
+                bot.send_message(m.from_user.id, 'User successfully edited')
+            else:
+                bot.send_message(m.from_user.id, 'User not found')
+            return
+
+        return
+
     # EOD report verification logic
     if user.position_in_menu == 1:
         if m.text == 'Back to main menu':
@@ -485,45 +650,25 @@ def messages(m):
         bot.send_message(m.from_user.id, 'Not found')
         return
 
-    if user.position_in_menu == 0 and m.text == 'EOD':
-        message, reply_markup = build_menu(1)
-        user.position_in_menu = 1
-        db.session.commit()
-        bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
-        return
-
-    if not is_bot_admin(m.from_user.id):
-        return
-
-    # row 1 - admin instruction
-    # row 2 - user instruction is applied to
-    # row 3 - additional details if required
-    text = m.text.split('\n')
-
-    if text[0] == 'list':
-        user_list = Users.query.order_by(Users.position_in_menu).all()
-
-        if len(user_list) == 0:
-            bot.send_message(m.from_user.id, 'No users in the database(something has gone wrong)')
+    # Sort Menu to sort current workload
+    if user.position_in_menu == 5:
+        if m.text == 'Back to main menu':
+            message, reply_markup = build_menu(0, is_admin=is_bot_admin(m.from_user.id))
+            user.position_in_menu = 0
+            db.session.commit()
+            bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
             return
 
-        r = 'list of users:'
-        for i in user_list:
-            r += '\n' + str(i.id)
+        res = split_sort_current_work(m.text)
+        if res:
+            for i in res:
+                bot.send_message(m.from_user.id, i, parse_mode='MarkdownV2')
+            return
 
-        bot.send_message(m.from_user.id, r)
+        bot.send_message(m.from_user.id, 'Can\'t sort that')
         return
 
-    if text[0] == 'add':
-        todo_user = Users.query.filter_by(id=int(text[1])).first()
-
-        if todo_user:
-            todo_user.position_in_menu = 0
-            db.session.commit()
-            bot.send_message(m.from_user.id, 'User successfully edited')
-        else:
-            bot.send_message(m.from_user.id, 'User not found')
-        return
+    return
 
 
 @bot.message_handler(content_types=['document'])
