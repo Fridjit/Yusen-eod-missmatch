@@ -433,26 +433,37 @@ def generate_payload(carrier_scac, customer, shift, origin, destination, driver_
 
 
 # Request to SmartSheets to submit a bobtail
-def submit_bobtail(carrier_scac, customer, shift, origin, destination, driver_name, comments):
+def submit_bobtail():
     form_token = get_form_token()
 
     if not form_token:
         print('No FormToken error')
         return False
 
-    url = "https://forms.smartsheet.com/api/submit/f6aacf211b2a4f10ae3bda2cfc6bce2a"
+    try:
 
-    payload = {}
-    files = []
+        url = "https://forms.smartsheet.com/api/submit/f6aacf211b2a4f10ae3bda2cfc6bce2a"
 
-    headers = {
-        'x-smar-forms-version': '1.121.1',
-        'x-smar-submission-token': form_token
-    }
+        payload = {
+            'data': '{"kqkzAPq":{"type":"STRING","value":"BMKJ"},"zXlGWn2":{"type":"STRING","value":"Bobtail"},"EkrG8Ql":{"type":"STRING","value":"Target"},"Jn6Zrgm":{"type":"STRING","value":"PM"},"7AgLY0G":{"type":"STRING","value":"Sumner 1"},"11eEO6J":{"type":"STRING","value":"Taylor Way"},"0kNKDaw":{"type":"STRING","value":"Haruna"},"7k6aRle":{"type":"STRING","value":"Completed"},"Yqd3MgE":{"type":"STRING","value":"No Empty"},"EMAIL_RECEIPT":{"type":"STRING","value":""}}'
+        }
 
-    response = requests.request("POST", url, headers=headers, timeout=1.3)
+        headers = {
+            'x-smar-forms-version': '1.122.0',
+            'x-smar-submission-token': form_token
+        }
 
-    return response
+        response = requests.request("POST", url, headers=headers, files=payload, timeout=1.3)
+
+        print(response)
+        print(response.text)
+        print(response.headers)
+        print(response.status_code)
+
+        return response
+
+    except Exception as e:
+        return e
 
 
 # ======================================================================================================================
@@ -507,15 +518,17 @@ def test_command(m):
     if not is_bot_admin(m.from_user.id):
         return
 
+    '''
     db.drop_all()
     db.create_all()
 
     user = Users(id=m.from_user.id, name=m.from_user.first_name, position_in_menu=0)
     db.session.add(user)
     db.session.commit()
-    message, reply_markup = build_menu(0)
-    bot.send_message(m.from_user.id, 'Welcome', reply_markup=reply_markup)
     print('Databases recreated')
+    '''
+    reply = submit_bobtail()
+    bot.send_message(m.from_user.id, str(reply))
 
 
 # /help
