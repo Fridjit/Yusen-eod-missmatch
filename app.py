@@ -138,7 +138,7 @@ def is_bot_admin(telegram_id):
 
 
 # Search function
-def search_for_an_ID_or_row(text, return_dictionary=False, search_limitations=None):
+def search_for_an_ID_or_row(text, return_dictionary=False):
     matched = []
     file_path = 'temp/completed_moves_verified.csv'
 
@@ -146,18 +146,13 @@ def search_for_an_ID_or_row(text, return_dictionary=False, search_limitations=No
         reader = csv.reader(eod_log_file)
         reader.__next__()
 
-        if search_limitations == 'last_4':
-            for i in reader:
-                if re.search(f'{text + scac}', i[3]):
-                    matched.append(i)
-        else:
-            for i in reader:
-                if i[3] == text:
-                    matched.append(i)
-                elif i[4] and re.search(f'{text}', i[4]):
-                    matched.append(i)
-                elif re.search(f'{text + scac}', i[3]) and len(text) > 4:
-                    matched.append(i)
+        for i in reader:
+            if re.search(f'{text + scac}', i[3]) and len(text) == 4:
+                matched.append(i)
+            elif i[4] and re.search(f'{text}', i[4]):
+                matched.append(i)
+            elif i[3] == text:
+                matched.append(i)
 
     if not matched:
         return False
@@ -234,7 +229,7 @@ def EOD_logic_check(message):
 
             # if move_id is 4 digits only:
             elif len(i[0]) == 4 and not re.match(r'^0-9', i[0]):
-                search_res = search_for_an_ID_or_row(i[0], return_dictionary=True, search_limitations='last_4')
+                search_res = search_for_an_ID_or_row(i[0], return_dictionary=True)
                 reply = i[0] + ' - Matched ID\'s:  '
                 if search_res:
                     for j in search_res:
