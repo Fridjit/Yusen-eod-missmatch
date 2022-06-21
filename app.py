@@ -99,7 +99,7 @@ def build_menu(position_in_menu, user=None, is_admin=False):
         markup.row(button)
         message = 'Main menu'
     elif position_in_menu == 1:
-        button = types.KeyboardButton('Mode: "EOD"')
+        button = types.KeyboardButton('Current mode: "EOD"')
         markup.row(button)
         button = types.KeyboardButton('Change to search')
         markup.row(button)
@@ -107,7 +107,7 @@ def build_menu(position_in_menu, user=None, is_admin=False):
         markup.row(button)
         message = 'Click the "Mode" button for more info'
     elif position_in_menu == 2:
-        button = types.KeyboardButton('Mode: "SEARCH"')
+        button = types.KeyboardButton('Current mode: "SEARCH"')
         markup.row(button)
         button = types.KeyboardButton('Change to EOD')
         markup.row(button)
@@ -122,7 +122,7 @@ def build_menu(position_in_menu, user=None, is_admin=False):
         markup.row(button)
         button = types.KeyboardButton('Back to main menu')
         markup.row(button)
-        message = 'Click "/info" for more info'
+        message = 'Bobtail submission mode\n\nClick "/help" for more info'
 
     elif position_in_menu == 5:
         button = types.KeyboardButton('Back to main menu')
@@ -459,15 +459,97 @@ def submit_bobtail(customer, shift, origin, destination, driver_name, comment):
 
         response = requests.request("POST", url, headers=headers, files=payload, timeout=1.3)
 
-        print(response)
-        print(response.text)
-        print(response.headers)
-        print(response.status_code)
-
-        return response
+        return response.status_code
 
     except Exception as e:
+        print(e)
         return e
+
+
+def check_row(row_as_a_string, user):
+    origins = {
+        'AL': 'Alexander',
+        'IGD': 'IGD',
+        'TW': 'Taylor Way',
+        'S1': 'Sumner 1',
+        'S2': 'Sumner 2',
+        'DP': 'DuPont'
+    }
+    destinations = {
+        'AL': 'Alexander',
+        'IGD': 'IGD',
+        'TW': 'Taylor Way',
+        'S1': 'Sumner 1',
+        'S2': 'Sumner 2',
+        'DP': 'DuPont'
+    }
+
+    try:
+        row = row_as_a_string.split(' ')
+
+        if len(row) < 4:
+            return False, None, None, None, None, None, None
+
+        customer = user.current_customer
+        if row[0] == 'Target' or row[0] == 'TJX' or row[0] == 'Yazaki':
+            shift = row[0]
+            row.pop(0)
+
+        shift = user.current_shift
+        if row[0] == 'AM' or row[0] == 'PM':
+            shift = row[0]
+            row.pop(0)
+
+        if origins.get(row[0], 'N/F') == 'N/F':
+            return False, None, None, None, None, None, None
+        origin = origins.get(row[0])
+        row.pop(0)
+
+        if destinations.get(row[0], 'N/F') == 'N/F':
+            return False, None, None, None, None, None, None
+        destination = origins.get(row[0])
+        row.pop(0)
+
+        driver_name = row[0]
+        row.pop(0)
+
+        comment = ''
+        for i in row:
+            comment += i + ' '
+        comment = comment[:-1]
+        return True, customer, shift, origin, destination, driver_name, comment
+
+    except Exception:
+        return False, None, None, None, None, None, None
+
+
+def bobtail_filter_and_submit(text, user):
+    rows = text.split('\n')
+    result = []
+
+    for row in rows:
+        status, customer, shift, origin, destination, driver_name, comment = check_row(row, user)
+        if not status:
+            result.append(row)
+        elif not submit_bobtail(customer, shift, origin, destination, driver_name, comment) == 200:
+            result.append(row)
+
+    return_messages = []
+    return_message = 'Errors: '
+    for i in result:
+        reply = '\n' + i
+        if len(reply) > 4096:
+            reply = 'row to long? report this to admin'
+        if len(return_message) + len(reply) > 4096:
+            return_messages.append(return_message)
+            return_message = ''
+        return_message += reply
+    return_messages.append(return_message)
+
+    if return_messages == ['Errors: ']:
+        return ['Everything is submitted successfully']
+
+    return return_messages
 
 
 # ======================================================================================================================
@@ -482,10 +564,16 @@ def start_command(m):
 
     if not user:
         user = Users(id=m.from_user.id, name=m.from_user.first_name)
+        bot.send_message(admin_bot_list[0],
+                         'New User:\n' + m.from_user.first_name + '\n'
+                         '`' + str(m.from_user.id) + '`',
+                         parse_mode='MarkdownV2')
         db.session.add(user)
         db.session.commit()
-        bot.send_message(m.from_user.id, 'You are not registered, please request access from your manager.\n\n'
-                                         'Your id: ' + str(m.from_user.id) + ', Give it to your manager')
+        bot.send_message(m.from_user.id,
+                         'You are not registered, please request access from your manager.\n\n'
+                         'Your id: `' + str(m.from_user.id) + '`(clickable), Give it to your manager'
+                         , parse_mode='MarkdownV2')
         return
 
     if user.position_in_menu == -1:
@@ -495,7 +583,7 @@ def start_command(m):
         user.position_in_menu = -1
 
         reply = 'You are not registered, please request access from your manager\n\n' \
-                'Your id: ' + str(m.from_user.id) + ', Give it to your manager\n\n' \
+                'Your id: `' + str(m.from_user.id) + '`(clickable), Give it to your manager\n\n' \
                 'This is the last time you get this message. The bot is for private ' \
                 'use only, so until you are granted access you will be ignored. Thank you.'
         reply_markup = None
@@ -506,7 +594,7 @@ def start_command(m):
             reply = 'You have been registered, Master'
 
         db.session.commit()
-        bot.send_message(m.from_user.id, reply, reply_markup=reply_markup)
+        bot.send_message(m.from_user.id, reply, reply_markup=reply_markup, parse_mode='MarkdownV2')
         return
 
     message, reply_markup = build_menu(0)
@@ -522,6 +610,7 @@ def test_command(m):
     if not is_bot_admin(m.from_user.id):
         return
 
+    '''
     db.drop_all()
     db.create_all()
 
@@ -529,8 +618,10 @@ def test_command(m):
     db.session.add(user)
     db.session.commit()
     print('Databases recreated')
+    '''
 
     # reply = str(submit_bobtail())
+
     reply = 'no test in progress'
     bot.send_message(m.from_user.id, reply)
 
@@ -540,16 +631,70 @@ def test_command(m):
 def help_command(m):
     user = Users.query.filter_by(id=m.from_user.id).first()
 
+    if not user:
+        user = Users(id=m.from_user.id, name=m.from_user.first_name, position_in_menu=-1)
+        bot.send_message(admin_bot_list[0],
+                         'New User:\n' + m.from_user.first_name + '\n'
+                         '`' + str(m.from_user.id) + '`',
+                         parse_mode='MarkdownV2')
+        db.session.add(user)
+        db.session.commit()
+        message = 'You are not registered, please request access from your manager\n\n' \
+                  'Your id: `' + str(m.from_user.id) + '`(clickable), Give it to your manager\n\n' \
+                  'This is the last time you get this message. The bot is for private ' \
+                  'use only, so until you are granted access you will be ignored. Thank you.'
+        bot.send_message(m.from_user.id, message, parse_mode='MarkdownV2')
+        return
+
     if user.position_in_menu < 0:
         return
 
-    if not is_bot_admin(m.from_user.id):
-        return
-
-    message = 'Admin features:\n' \
+    if user.position_in_menu == 0:
+        message, reply_markup = build_menu(0)
+        message = 'This is the main menu, use buttons below to navigate'
+        if is_bot_admin(m.from_user.id):
+            message = 'Admin features:\n' \
               'add [users_telegram_id]\n' \
               'remove [users_telegram_id]\n' \
               'list - list of user id\'s\n'
+
+        bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+        return
+
+    if user.position_in_menu == 1:
+        message, reply_markup = build_menu(1)
+        message = 'Current mode is EOD, the system tries to match yur report moves with the completed moves log you upload in advance\n' \
+                  'For more info click the current mode button\n\n' \
+                  'To change mode click the "Change to search"'
+        bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+        return
+
+    if user.position_in_menu == 2:
+        message, reply_markup = build_menu(2)
+        message = 'Current mode is search. click the current mode button on how to use this mode\n\n' \
+                  'To change mode click the "Change to EOD"'
+        bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+        return
+
+    if user.position_in_menu == 4:
+        message, reply_markup = build_menu(4, user)
+        message = 'To submit bobtails use the following format(scac is assigned automatically):\n' \
+                  'customer shift origin destination driver_name(no spaces) comment - 1 row per submission\n\n' \
+                  'Customer/Shift - optional parameters, if not applied then the values from the buttons are used(click button to loop thru customer/carrier\n\n' \
+                  'List of yards:\n' \
+                  'AL: Alexander\nIGD: IGD\nTW: Taylor Way\nS1: Sumner 1\nS2: Sumner 2\nDP: DuPont\n\n' \
+                  'Example:\n' \
+                  'Target TW S2 driver_name comment is every word after the drivers name'
+        bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+        return
+
+    if user.position_in_menu == 5:
+        message, reply_markup = build_menu(5)
+        message = 'Paste a copy of the open moves log and watch the magic'
+        bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+        return
+
+    return
 
 
 # All other messages handler
@@ -559,8 +704,17 @@ def messages(m):
 
     if not user:
         user = Users(id=m.from_user.id, name=m.from_user.first_name, position_in_menu=-1)
+        bot.send_message(admin_bot_list[0],
+                         'New User:\n' + m.from_user.first_name + '\n'
+                         '`' + str(m.from_user.id) + '`',
+                         parse_mode='MarkdownV2')
         db.session.add(user)
         db.session.commit()
+        message = 'You are not registered, please request access from your manager\n\n' \
+                  'Your id: `' + str(m.from_user.id) + '`(clickable), Give it to your manager\n\n' \
+                  'This is the last time you get this message. The bot is for private ' \
+                  'use only, so until you are granted access you will be ignored. Thank you.'
+        bot.send_message(m.from_user.id, message, parse_mode='MarkdownV2')
         return
 
     if user.position_in_menu < 0:
@@ -639,7 +793,7 @@ def messages(m):
             bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
             return
 
-        if m.text == 'Mode: "EOD"':
+        if m.text == 'Current mode: "EOD"':
             bot.send_message(m.from_user.id, 'Just paste the info in "MOVE_ID CONTAINER_NUMBER MOVE_TYPE" format\n\n'
                                              'To update the completed moves log just upload the .csv file here.')
             return
@@ -664,7 +818,7 @@ def messages(m):
             bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
             return
 
-        if m.text == 'Mode: "SEARCH"':
+        if m.text == 'Current mode: "SEARCH"':
             bot.send_message(m.from_user.id, 'Paste full MOVE_ID, last 4 of the MOVE_ID, or the CONTAINER_NUMBER to '
                                              'search for a match in the completed moves log\n\n'
                                              'To update the completed moves log just upload the .csv file here.')
@@ -723,8 +877,14 @@ def messages(m):
             bot.send_message(m.from_user.id, 'Shift changed to AM', reply_markup=reply_markup)
             return
 
-        # TODO: upload via format, add buttons with mode and etc...
+        # Bobtail submission logic
+        res = bobtail_filter_and_submit(m.text, user)
+        if res:
+            for i in res:
+                bot.send_message(m.from_user.id, i)
+            return
 
+        bot.send_message(m.from_user.id, 'Nothing to submit, did you do everything right?')
         return
 
     # Sort Menu to sort current workload
@@ -751,6 +911,9 @@ def messages(m):
 @bot.message_handler(content_types=['document'])
 def message_document(m):
     user = Users.query.filter_by(id=m.from_user.id).first()
+
+    if not user:
+        return
 
     if not (user.position_in_menu == 1 or user.position_in_menu == 2):
         return
