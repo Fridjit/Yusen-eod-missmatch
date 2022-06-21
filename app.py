@@ -52,8 +52,8 @@ class Users(db.Model):
     id = db.Column(db.BigInteger, primary_key=True, unique=True)
     name = db.Column(db.String(64))
     position_in_menu = db.Column(db.Integer, default='-2')
-    current_customer = db.Column(db.String(20), nullable=True)
-    current_shift = db.Column(db.String(2), nullable=True)
+    current_customer = db.Column(db.String(20), default='Target')
+    current_shift = db.Column(db.String(2), default='AM')
 
     def __init__(self, **kwargs):
         for property, value in kwargs.items():
@@ -86,7 +86,7 @@ def telegram_webhook():
 # Utility functions
 
 # Build the menu button
-def build_menu(position_in_menu, is_admin=False):
+def build_menu(position_in_menu, user=None, is_admin=False):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     message = None
 
@@ -94,6 +94,8 @@ def build_menu(position_in_menu, is_admin=False):
         button = types.KeyboardButton('SORT')
         markup.row(button)
         button = types.KeyboardButton('EOD')
+        markup.row(button)
+        button = types.KeyboardButton('BOBTAILS')
         markup.row(button)
         message = 'Main menu'
     elif position_in_menu == 1:
@@ -112,6 +114,15 @@ def build_menu(position_in_menu, is_admin=False):
         button = types.KeyboardButton('Back to main menu')
         markup.row(button)
         message = 'Click the "Mode" button for more info'
+
+    elif position_in_menu == 4:
+        button = types.KeyboardButton('Customer: ' + user.current_customer)
+        markup.row(button)
+        button = types.KeyboardButton('Shift: ' + user.current_shift)
+        markup.row(button)
+        button = types.KeyboardButton('Back to main menu')
+        markup.row(button)
+        message = 'Click "/info" for more info'
 
     elif position_in_menu == 5:
         button = types.KeyboardButton('Back to main menu')
@@ -304,8 +315,6 @@ def EOD_logic_check(message):
         if return_messages:
             return return_messages
 
-
-
     except Exception as e:
         print('An error has occurred: ' + str(e))
         return ['An error occurred, please report this to the manager with the message you sent to the bot']
@@ -427,13 +436,8 @@ def get_form_token():
     return needed_string
 
 
-# Generate payload for the post function
-def generate_payload(carrier_scac, customer, shift, origin, destination, driver_name, comments):
-    return '{"kqkzAPq":{"type":"STRING","value":"' + carrier_scac + '"},"zXlGWn2":{"type":"STRING","value":"Bobtail"},"EkrG8Ql":{"type":"STRING","value":"' + customer + '"},"Jn6Zrgm":{"type":"STRING","value":"' + shift + '"},"7AgLY0G":{"type":"STRING","value":"' + origin + '"},"11eEO6J":{"type":"STRING","value":"' + destination + '"},"0kNKDaw":{"type":"STRING","value":"' + driver_name + '"},"7k6aRle":{"type":"STRING","value":"Completed"},"Yqd3MgE":{"type":"STRING","value":"' + comments + '"},"EMAIL_RECEIPT":{"type":"STRING","value":""}}'
-
-
 # Request to SmartSheets to submit a bobtail
-def submit_bobtail():
+def submit_bobtail(customer, shift, origin, destination, driver_name, comment):
     form_token = get_form_token()
 
     if not form_token:
@@ -445,7 +449,7 @@ def submit_bobtail():
         url = "https://forms.smartsheet.com/api/submit/f6aacf211b2a4f10ae3bda2cfc6bce2a"
 
         payload = {
-            'data': '{"kqkzAPq":{"type":"STRING","value":"BMKJ"},"zXlGWn2":{"type":"STRING","value":"Bobtail"},"EkrG8Ql":{"type":"STRING","value":"Target"},"Jn6Zrgm":{"type":"STRING","value":"PM"},"7AgLY0G":{"type":"STRING","value":"Sumner 1"},"11eEO6J":{"type":"STRING","value":"Taylor Way"},"0kNKDaw":{"type":"STRING","value":"Haruna"},"7k6aRle":{"type":"STRING","value":"Completed"},"Yqd3MgE":{"type":"STRING","value":"No Empty"},"EMAIL_RECEIPT":{"type":"STRING","value":""}}'
+            'data': '{"kqkzAPq":{"type":"STRING","value":"'+scac+'"},"zXlGWn2":{"type":"STRING","value":"Bobtail"},"EkrG8Ql":{"type":"STRING","value":"'+customer+'"},"Jn6Zrgm":{"type":"STRING","value":"'+shift+'"},"7AgLY0G":{"type":"STRING","value":"'+origin+'"},"11eEO6J":{"type":"STRING","value":"'+destination+'"},"0kNKDaw":{"type":"STRING","value":"'+driver_name+'"},"7k6aRle":{"type":"STRING","value":"Completed"},"Yqd3MgE":{"type":"STRING","value":"'+comment+'"},"EMAIL_RECEIPT":{"type":"STRING","value":""}}'
         }
 
         headers = {
@@ -518,7 +522,6 @@ def test_command(m):
     if not is_bot_admin(m.from_user.id):
         return
 
-    '''
     db.drop_all()
     db.create_all()
 
@@ -526,9 +529,10 @@ def test_command(m):
     db.session.add(user)
     db.session.commit()
     print('Databases recreated')
-    '''
-    reply = submit_bobtail()
-    bot.send_message(m.from_user.id, str(reply))
+
+    # reply = str(submit_bobtail())
+    reply = 'no test in progress'
+    bot.send_message(m.from_user.id, reply)
 
 
 # /help
@@ -573,6 +577,13 @@ def messages(m):
         if m.text == 'SORT':
             message, reply_markup = build_menu(5)
             user.position_in_menu = 5
+            db.session.commit()
+            bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+            return
+
+        if m.text == 'BOBTAILS':
+            message, reply_markup = build_menu(4, user=user)
+            user.position_in_menu = 4
             db.session.commit()
             bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
             return
@@ -666,6 +677,54 @@ def messages(m):
             return
 
         bot.send_message(m.from_user.id, 'Not found')
+        return
+
+    # BOBTAILS logic
+    if user.position_in_menu == 4:
+        if m.text == 'Back to main menu':
+            user.position_in_menu = 0
+            db.session.commit()
+            message, reply_markup = build_menu(0, user=user)
+            bot.send_message(m.from_user.id, message, reply_markup=reply_markup)
+            return
+
+        if m.text == 'Customer: Target':
+            user.current_customer = 'TJX'
+            db.session.commit()
+            message, reply_markup = build_menu(4, user=user)
+            bot.send_message(m.from_user.id, 'Customer changed to TJX', reply_markup=reply_markup)
+            return
+
+        if m.text == 'Customer: TJX':
+            user.current_customer = 'Yazaki'
+            db.session.commit()
+            message, reply_markup = build_menu(4, user=user)
+            bot.send_message(m.from_user.id, 'Customer changed to Yazaki', reply_markup=reply_markup)
+            return
+
+        if m.text == 'Customer: Yazaki':
+            user.current_customer = 'Target'
+            db.session.commit()
+            message, reply_markup = build_menu(4, user=user)
+            bot.send_message(m.from_user.id, 'Customer changed to Target', reply_markup=reply_markup)
+            return
+
+        if m.text == 'Shift: AM':
+            user.current_shift = 'PM'
+            db.session.commit()
+            message, reply_markup = build_menu(4, user=user)
+            bot.send_message(m.from_user.id, 'Shift changed to PM', reply_markup=reply_markup)
+            return
+
+        if m.text == 'Shift: PM':
+            user.current_shift = 'AM'
+            db.session.commit()
+            message, reply_markup = build_menu(4, user=user)
+            bot.send_message(m.from_user.id, 'Shift changed to AM', reply_markup=reply_markup)
+            return
+
+        # TODO: upload via format, add buttons with mode and etc...
+
         return
 
     # Sort Menu to sort current workload
