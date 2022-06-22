@@ -480,7 +480,12 @@ def check_row(row_as_a_string, user):
     }
 
     try:
-        row = row_as_a_string.split(' ')
+        raw_row = row_as_a_string.split(' ')
+        row = []
+
+        for i in raw_row:
+            if i:
+                row.append(i)
 
         if len(row) < 4:
             return False, None, None, None, None, None, None
@@ -567,8 +572,8 @@ def start_command(m):
         db.session.commit()
         bot.send_message(m.from_user.id,
                          'You are not registered, please request access from your manager.\n\n'
-                         'Your id: `' + str(m.from_user.id) + '`(clickable), Give it to your manager'
-                         , parse_mode='MarkdownV2')
+                         'Your id: `' + str(m.from_user.id) + '`(clickable), Give it to your manager',
+                         parse_mode='MarkdownV2')
         return
 
     if user.position_in_menu == -1:
@@ -754,7 +759,7 @@ def messages(m):
 
             r = 'list of users:'
             for i in user_list:
-                r += '\n' + str(i.id)
+                r += '\n' + str(i.id) + ' ' + i.name
 
             bot.send_message(m.from_user.id, r)
             return
@@ -765,7 +770,18 @@ def messages(m):
             if todo_user:
                 todo_user.position_in_menu = 0
                 db.session.commit()
-                bot.send_message(m.from_user.id, 'User successfully edited')
+                bot.send_message(m.from_user.id, 'User successfully added')
+            else:
+                bot.send_message(m.from_user.id, 'User not found')
+            return
+
+        if text[0] == 'remove':
+            todo_user = Users.query.filter_by(id=int(text[1])).first()
+
+            if todo_user:
+                todo_user.position_in_menu = -2
+                db.session.commit()
+                bot.send_message(m.from_user.id, 'User successfully removed')
             else:
                 bot.send_message(m.from_user.id, 'User not found')
             return
