@@ -759,7 +759,7 @@ def messages(m):
 
             r = 'list of users:'
             for i in user_list:
-                r += '\n' + str(i.id) + ' ' + i.name
+                r += '\n' + str(i.id) + ' ' + i.name + ', pim: ' + i.position_in_menu
 
             bot.send_message(m.from_user.id, r)
             return
