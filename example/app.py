@@ -147,7 +147,10 @@ def search_for_an_ID_or_row(text, return_dictionary=False, match_last_4=False):
         reader.__next__()
 
         for i in reader:
-            if re.search(f'{text + scac}', i[3]) and (len(text) == 4 or match_last_4):
+            if match_last_4:
+                if re.search(f'{text + scac}', i[3]):
+                    matched.append(i)
+            elif re.search(f'{text + scac}', i[3]) and len(text) == 4:
                 matched.append(i)
             elif i[4] and re.search(f'{text}', i[4]):
                 matched.append(i)
