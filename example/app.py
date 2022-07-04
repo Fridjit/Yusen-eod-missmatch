@@ -46,7 +46,7 @@ db = SQLAlchemy(app)
 
 # database model to authenticate users
 class Users(db.Model):
-    __tablename__ = 'bmkj'
+    __tablename__ = 'example'
 
     # Telegram ID as a primary key since it's unique to each user
     id = db.Column(db.BigInteger, primary_key=True, unique=True)
@@ -138,7 +138,7 @@ def is_bot_admin(telegram_id):
 
 
 # Search function
-def search_for_an_ID_or_row(text, return_dictionary=False):
+def search_for_an_ID_or_row(text, return_dictionary=False, match_last_4=False):
     matched = []
     file_path = 'temp/completed_moves_verified.csv'
 
@@ -147,7 +147,10 @@ def search_for_an_ID_or_row(text, return_dictionary=False):
         reader.__next__()
 
         for i in reader:
-            if re.search(f'{text + scac}', i[3]) and len(text) == 4:
+            if match_last_4:
+                if re.search(f'{text + scac}', i[3]):
+                    matched.append(i)
+            elif re.search(f'{text + scac}', i[3]) and len(text) == 4:
                 matched.append(i)
             elif i[4] and re.search(f'{text}', i[4]):
                 matched.append(i)
@@ -190,7 +193,15 @@ def EOD_logic_check(message):
             for i in reader:
                 eod_log.update({i[3]: i})
 
-        dispatch_list = message.split('\n')
+        raw_list = message.split('\n')
+        dispatch_list = []
+
+        # check for spaces
+        while raw_list:
+            if re.search(r'\S', raw_list[0]):
+                dispatch_list.append(raw_list[0])
+            raw_list.pop(0)
+
         for i in range(len(dispatch_list)):
             current_row = dispatch_list[i - 1].split(' ')
             dispatch_list[i - 1] = []
@@ -210,26 +221,11 @@ def EOD_logic_check(message):
         broken_rows = []
 
         for i in dispatch_list:
-
-            # check on length [Move_ID, container number, Move Type]
-            if len(i) != 3:
-                reply = ''
-                for j in i:
-                    reply += j + ' '
-                reply = reply[:-1] + ' - row does not match format'
-                broken_rows.append(reply)
-
-            # empty move_id
-            elif not i[0]:
-                reply = ''
-                for j in i:
-                    reply += j + ' '
-                reply = reply[:-1] + ' - row does not match format'
-                broken_rows.append(reply)
+            # [Move_ID, container number, Move Type]
 
             # if move_id is 4 digits only:
-            elif len(i[0]) == 4 and not re.match(r'^0-9', i[0]):
-                search_res = search_for_an_ID_or_row(i[0], return_dictionary=True)
+            if len(i[0]) == 4 and not re.match(r'^0-9', i[0]):
+                search_res = search_for_an_ID_or_row(i[0], return_dictionary=True, match_last_4=True)
                 reply = i[0] + ' - Matched ID\'s:  '
                 if search_res:
                     for j in search_res:
